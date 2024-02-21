@@ -1,79 +1,88 @@
-﻿using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Drawing.Charts;
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Spreadsheet;
-using System.Text.RegularExpressions;
+﻿using DocumentFormat.OpenXml.Office2013.Excel;
+using System.ComponentModel;
+using System.Text;
+using Task3.Services;
 
 namespace Task3;
 
 internal class Program
 {
-    static string GetColumnName(string? cellName)
+    public static string? TextConstructor(string productName, UserService userService, 
+        ProductService productService, RequestService requestService)
     {
-        if (cellName is null)
+        var product = productService.GetProductIdByName(productName);
+        if (product != null)
         {
-            return string.Empty;
+            var requests = requestService.GetByProductId(product.Id);
+            if (requests.Any())
+            {
+                var stringBuilder = new StringBuilder("Контакное лицо\tКол-во\tСумма\tДата\n");
+                foreach (var request in requests)
+                {
+                    stringBuilder.Append($"{userService.GetContactPersonNameById(request.UserId)} \t {request.ProductCount} \t " +
+                        $"{request.ProductCount*product.ProductPrice} \t {request.PlacementDate} \n");
+                }
+                return stringBuilder.ToString();
+            }
+            else return "Такой продукт еще никто не заказывал!";
         }
-
-        // Create a regular expression to match the column name portion of the cell name. [A-Za-z]
-        Regex regex = new Regex(@"[A-Za-z]|\d+");
-        Match match = regex.Match(cellName);
-
-        return match.Value;
+        else return "Такого продукта нет в списке!";
     }
 
-    // Given a cell name, parses the specified cell to get the row index.
-    static uint? GetRowIndex(string? cellName)
+    public static string? TextConstructor(int year, int month, RequestService requestService, UserService userService)
     {
-        if (cellName is null)
+        var requests = requestService.GetByData(year, month);
+        int userId = -1, count = 0;
+        if (requests.Any())
         {
-            return null;
+            foreach (var request in requests)
+            {
+                var countRequests = requestService.RequestsCountByDate(request.UserId, requests);
+                if (countRequests > count)
+                {
+                    userId = request.UserId;
+                    count = countRequests;
+                }
+            }
+            if (count == 0) 
+            {
+                return "Такого клиента нет!";
+            }
+            else return $"Клиент {userService.GetContactPersonNameById(userId)} является золотым клиентом совершив {count} заказ(ов)";
         }
-
-        // Create a regular expression to match the row index portion the cell name.
-        Regex regex = new Regex(@"\d+");
-        Match match = regex.Match(cellName);
-
-        return uint.Parse(match.Value);
+        else
+        {  
+            return "Такого клиента нет!";
+        }
     }
+
     static void Main(string[] args)
     {
-        SpreadsheetDocument spreadSheet = null;
-        bool check = true;
-        while (check)
+        UserService userService = null;
+        ProductService productService = null;
+        RequestService requestService = null;
+
+        bool check = false;
+        while (!check)
         {
             //Console.Write("Введите путь к файлу: ");
-            string? path = @"C:\Users\musfo\Desktop\тест\Практическое задание для кандидата.xlsx"; //Console.ReadLine();
-            if (!string.IsNullOrWhiteSpace(path))
+            string? file = @"C:\Users\musfo\Desktop\тест\Практическое задание для кандидата.xlsx"; //Console.ReadLine();
+            if (!string.IsNullOrWhiteSpace(file))
             {
-                if (File.Exists(path))
+                if (File.Exists(file))
                 {
                     try
                     {
-                        using (SpreadsheetDocument document = SpreadsheetDocument.Open(path, false))
-                        {
-                            
-
-                            //orksheetPart worksheetPart = (WorksheetPart)document.WorkbookPart!.GetPartById(id);
-
-
-                            var shareStringPart = document.WorkbookPart.GetPartsOfType<SharedStringTablePart>();
-                            var items = shareStringPart.First().SharedStringTable.Elements<SharedStringItem>();
-                            foreach (var item in items)
-                            {
-                                Console.WriteLine(item.InnerText);
-                            }
-                        }
-
-
-
-
-                        check = false;
+                        //инициализация таблиц
+                        userService = new UserService(file);
+                        productService = new ProductService(file);
+                        requestService = new RequestService(file);
+                        check = true;
                     }
-                    catch(Exception ex)
+                    catch (Exception ex)
                     {
                         Console.Clear();
-                        Console.WriteLine("Что-то пошло не так! Попробуйте еще раз." + ex.ToString());
+                        Console.WriteLine($"Что-то пошло не так! Попробуйте еще раз. Ошибка: {ex}");
                         break;
                     }
                 }
@@ -82,8 +91,6 @@ internal class Program
                     Console.Clear();
                     Console.WriteLine("Путь указан неверно! Попробуйте еще раз.");
                 }
-
-
             }
             else
             {
@@ -91,73 +98,102 @@ internal class Program
                 Console.WriteLine("Что-то пошло не так! Попробуйте еще раз.");
             }
         }
-        //spreadSheet.Dispose();
+
+        while (true)
+        {
+            Console.WriteLine("Доступные действия: \n " +
+                "1. По названию товара вывести список клиентов, заказавших этот товар \n " +
+                "2. Запрос на изменение контактного лица с указанием параметров(ФИО, название организации) \n " +
+                "3. Определение золотого клиента, с наибольшим кол-вом заказов за указанный год или месяц \n" +
+                "Введите цифру действия, которое хотите совершить: ");
+            int choice;
+            try
+            {
+                choice = Convert.ToInt16(Console.ReadLine());
+            }
+            catch
+            {
+                Console.Clear();
+                Console.WriteLine("Что-то пошло не так! Попробуйте еще раз!");
+                continue;
+            }
+            switch(choice)
+            {
+                case 1:
+                    Console.Clear();
+                    Console.WriteLine("Введите название товара: ");
+                    string? name = Console.ReadLine();
+                    Console.WriteLine(TextConstructor(name, userService, productService,requestService));
+                    break;
+                case 2:
+                    Console.Clear();
+                    int i = 1;
+                    var stringBuilder = new StringBuilder("Контакное лицо\tНаименование организации\n");
+                    foreach (var user in userService.Users)
+                    {
+                        stringBuilder.Append($"{i}. {user.ContactPerson}\t{user.OrganizationName} \n");
+                        i++;
+                    }
+                    Console.WriteLine(stringBuilder.ToString());
+                    Console.Write("Введите номер клиента, данные которые хотите изменить: ");
+                    try
+                    {
+                        int clientNumber = Convert.ToInt16(Console.ReadLine());
+                        Console.Clear();
+                        Console.Write("Введите новое ФИО: ");
+                        string newContactName = Console.ReadLine();
+                        Console.Write("\nВведите новое название организации: ");
+                        string newOrganizationName = Console.ReadLine();
+                        if(!string.IsNullOrWhiteSpace(newContactName) && !string.IsNullOrWhiteSpace(newOrganizationName))
+                        {
+                            if (userService.Update(clientNumber, newContactName, newOrganizationName))
+                            {
+                                Console.Clear();
+                                Console.WriteLine("Успешно!");
+                            }
+                            else
+                            {
+                                Console.Clear();
+                                Console.WriteLine("Введенные вами данные некорректны!");
+                            }
+                        }
+                        else
+                        {
+                            Console.Clear();
+                            Console.WriteLine("Введенные вами данные некорректны!");
+                        }
+                    }
+                    catch
+                    {
+                        Console.Clear();
+                        Console.WriteLine("Введенные вами данные некорректны!");
+                    }
+                    break;
+                case 3:
+                    Console.Clear();
+                    Console.Write("Введите год: ");
+                    try
+                    {
+                        int year = Convert.ToInt16(Console.ReadLine());
+                        Console.Write("\n Введите месяц: ");
+                        int month = Convert.ToInt16(Console.ReadLine());
+                        Console.Clear();
+                        Console.WriteLine(TextConstructor(year, month, requestService, userService));
+                        
+                    }
+                    catch 
+                    { 
+                        Console.Clear();
+                        Console.WriteLine("Введенные вами данные некорректны!");
+                    }
+
+
+                    break;
+                default:
+                    Console.Clear();
+                    Console.WriteLine("Попробуйте написать число от 1 до 3.");
+                    break;
+            }
+        }
     }
-}
-
-class User
-{
-    public User(int id, string organizationName, string address, string contactPerson)
-    {
-        Id = id;
-        OrganizationName = organizationName;
-        Address = address;
-        ContactPerson = contactPerson;
-    }
-
-    public int Id { get; set; }
-    public string OrganizationName { get; set; }
-    public string Address { get; set; }
-    public string ContactPerson { get; set; }
-}
-class UserService
-{
-
-}
-
-
-class Product
-{
-    public Product(int id, string productName, string measureUnit, int productPrice)
-    {
-        Id = id;
-        ProductName = productName;
-        MeasureUnit = measureUnit;
-        ProductPrice = productPrice;
-    }
-
-    public int Id { get; set; }
-    public string ProductName { get; set; }
-    public string MeasureUnit { get; set; }
-    public int ProductPrice { get; set; }
-}
-class ProductService
-{
-
-}
-
-
-
-class Request
-{
-    public Request(int id, int productId, int userId, int number, int productCount, DateOnly placementDate)
-    {
-        Id = id;
-        ProductId = productId;
-        UserId = userId;
-        Number = number;
-        ProductCount = productCount;
-        PlacementDate = placementDate;
-    }
-
-    public int Id { get; set; }
-    public int ProductId { get; set; }
-    public int UserId { get; set; }
-    public int Number { get; set; }
-    public int ProductCount { get; set; }
-    public DateOnly PlacementDate {  get; set; }
-}
-class RequestService
-{
-
 }
