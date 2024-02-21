@@ -65,8 +65,9 @@ internal class Program
         bool check = false;
         while (!check)
         {
-            //Console.Write("Введите путь к файлу: ");
-            string? file = @"C:\Users\musfo\Desktop\тест\Практическое задание для кандидата.xlsx"; //Console.ReadLine();
+            Console.Write("Введите путь к файлу: ");
+            //string? file = @"C:\Users\musfo\Desktop\тест\Практическое задание для кандидата.xlsx";
+            string? file = Console.ReadLine();
             if (!string.IsNullOrWhiteSpace(file))
             {
                 if (File.Exists(file))
