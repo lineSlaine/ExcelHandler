@@ -1,6 +1,7 @@
 ﻿using DocumentFormat.OpenXml.Office2013.Excel;
 using System.ComponentModel;
 using System.Text;
+using Task3.Models;
 using Task3.Services;
 
 namespace Task3;
@@ -11,49 +12,44 @@ internal class Program
         ProductService productService, RequestService requestService)
     {
         var product = productService.GetProductIdByName(productName);
-        if (product != null)
+        if (product == null)
         {
-            var requests = requestService.GetByProductId(product.Id);
-            if (requests.Any())
-            {
-                var stringBuilder = new StringBuilder("Контакное лицо\tКол-во\tСумма\tДата\n");
-                foreach (var request in requests)
-                {
-                    stringBuilder.Append($"{userService.GetContactPersonNameById(request.UserId)} \t {request.ProductCount} \t " +
-                        $"{request.ProductCount*product.ProductPrice} \t {request.PlacementDate} \n");
-                }
-                return stringBuilder.ToString();
-            }
-            else return "Такой продукт еще никто не заказывал!";
+            return "Такого продукта нет в списке!";
         }
-        else return "Такого продукта нет в списке!";
+        var requests = requestService.GetByProductId(product.Id);
+        if (!requests.Any())
+        {
+            
+            return "Такой продукт еще никто не заказывал!";
+        }
+        var stringBuilder = new StringBuilder("Контакное лицо\tКол-во\tСумма\tДата\n");
+        foreach (var request in requests)
+        {
+            stringBuilder.Append($"{userService.GetContactPersonNameById(request.UserId)} \t {request.ProductCount} \t " +
+                $"{request.ProductCount * product.ProductPrice} \t {request.PlacementDate} \n");
+        }
+        return stringBuilder.ToString();
+
     }
 
     public static string? TextConstructor(int year, int month, RequestService requestService, UserService userService)
     {
         var requests = requestService.GetByData(year, month);
-        int userId = -1, count = 0;
-        if (requests.Any())
+        if (!requests.Any())
         {
-            foreach (var request in requests)
-            {
-                var countRequests = requestService.RequestsCountByDate(request.UserId, requests);
-                if (countRequests > count)
-                {
-                    userId = request.UserId;
-                    count = countRequests;
-                }
-            }
-            if (count == 0) 
-            {
-                return "Такого клиента нет!";
-            }
-            else return $"Клиент {userService.GetContactPersonNameById(userId)} является золотым клиентом совершив {count} заказ(ов)";
-        }
-        else
-        {  
             return "Такого клиента нет!";
         }
+        int userId = -1, count = 0;
+        foreach (var request in requests)
+        {
+            var countRequests = requestService.RequestsCountByDate(request.UserId, requests);
+            if (countRequests > count)
+            {
+                userId = request.UserId;
+                count = countRequests;
+            }
+        }
+        return count == 0 ? "Такого клиента нет!" : $"Клиент {userService.GetContactPersonNameById(userId)} является золотым клиентом совершив {count} заказ(ов)";
     }
 
     static void Main(string[] args)
@@ -62,42 +58,36 @@ internal class Program
         ProductService productService = null;
         RequestService requestService = null;
 
-        bool check = false;
-        while (!check)
+        bool isInitializationNotCompleted = true;
+        while (isInitializationNotCompleted)
         {
             Console.Write("Введите путь к файлу: ");
-            //string? file = @"C:\Users\musfo\Desktop\тест\Практическое задание для кандидата.xlsx";
             string? file = Console.ReadLine();
-            if (!string.IsNullOrWhiteSpace(file))
+            Console.Clear();
+            if (string.IsNullOrWhiteSpace(file))
             {
-                if (File.Exists(file))
-                {
-                    try
-                    {
-                        //инициализация таблиц
-                        userService = new UserService(file);
-                        productService = new ProductService(file);
-                        requestService = new RequestService(file);
-                        check = true;
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Clear();
-                        Console.WriteLine($"Что-то пошло не так! Попробуйте еще раз. Ошибка: {ex}");
-                        break;
-                    }
-                }
-                else
-                {
-                    Console.Clear();
-                    Console.WriteLine("Путь указан неверно! Попробуйте еще раз.");
-                }
-            }
-            else
-            {
-                Console.Clear();
                 Console.WriteLine("Что-то пошло не так! Попробуйте еще раз.");
+                continue;
             }
+            if (!File.Exists(file))
+            {
+                Console.WriteLine("Путь указан неверно! Попробуйте еще раз.");
+                continue;
+            }
+            try
+            {
+                //инициализация таблиц
+                userService = new UserService(file);
+                productService = new ProductService(file);
+                requestService = new RequestService(file);
+                isInitializationNotCompleted = false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Что-то пошло не так! Попробуйте еще раз. Ошибка: {ex.Message}");
+                break;
+            }
+
         }
 
         while (true)
@@ -124,16 +114,14 @@ internal class Program
                     Console.Clear();
                     Console.WriteLine("Введите название товара: ");
                     string? name = Console.ReadLine();
-                    Console.WriteLine(TextConstructor(name, userService, productService,requestService));
+                    Console.WriteLine(TextConstructor(name, userService, productService, requestService));
                     break;
                 case 2:
                     Console.Clear();
-                    int i = 1;
                     var stringBuilder = new StringBuilder("Контакное лицо\tНаименование организации\n");
-                    foreach (var user in userService.Users)
+                    for(var i = 0; i < userService.Users.Count; i++)
                     {
-                        stringBuilder.Append($"{i}. {user.ContactPerson}\t{user.OrganizationName} \n");
-                        i++;
+                        stringBuilder.Append($"{i}. {userService.Users[i].ContactPerson}\t{userService.Users[i].OrganizationName} \n");
                     }
                     Console.WriteLine(stringBuilder.ToString());
                     Console.Write("Введите номер клиента, данные которые хотите изменить: ");
@@ -145,28 +133,21 @@ internal class Program
                         string newContactName = Console.ReadLine();
                         Console.Write("\nВведите новое название организации: ");
                         string newOrganizationName = Console.ReadLine();
-                        if(!string.IsNullOrWhiteSpace(newContactName) && !string.IsNullOrWhiteSpace(newOrganizationName))
+                        Console.Clear();
+                        if (string.IsNullOrWhiteSpace(newContactName) || string.IsNullOrWhiteSpace(newOrganizationName))
                         {
-                            if (userService.Update(clientNumber, newContactName, newOrganizationName))
-                            {
-                                Console.Clear();
-                                Console.WriteLine("Успешно!");
-                            }
-                            else
-                            {
-                                Console.Clear();
-                                Console.WriteLine("Введенные вами данные некорректны!");
-                            }
-                        }
-                        else
-                        {
-                            Console.Clear();
                             Console.WriteLine("Введенные вами данные некорректны!");
+                            continue;
                         }
+                        if (!userService.Update(clientNumber, newContactName, newOrganizationName))
+                        {
+                            Console.WriteLine("Введенные вами данные некорректны!");
+                            continue;
+                        }
+                        Console.WriteLine("Успешно!");
                     }
                     catch
                     {
-                        Console.Clear();
                         Console.WriteLine("Введенные вами данные некорректны!");
                     }
                     break;
@@ -180,14 +161,12 @@ internal class Program
                         int month = Convert.ToInt16(Console.ReadLine());
                         Console.Clear();
                         Console.WriteLine(TextConstructor(year, month, requestService, userService));
-                        
                     }
                     catch 
                     { 
                         Console.Clear();
                         Console.WriteLine("Введенные вами данные некорректны!");
                     }
-
 
                     break;
                 default:

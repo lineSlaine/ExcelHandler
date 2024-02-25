@@ -49,14 +49,14 @@ public class RequestService
     public int RequestsCountByDate(int id, IEnumerable<Request> requests)
     {
         int count = 0;
-        if (requests.Any())
+        if (!requests.Any())
         {
-            foreach (var request in requests)
-            {
-                if(request.UserId == id) count++;
-            }
+            return count;
         }
-        else return 0;
+        foreach (var request in requests)
+        {
+            if (request.UserId == id) count++;
+        }
         return count;
     }
 }

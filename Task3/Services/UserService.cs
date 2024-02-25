@@ -52,21 +52,21 @@ public class UserService
         
         while (!string.IsNullOrWhiteSpace(worksheet.Cell(i, 1).Value.ToString()))
         {
-            if (Users[idInList-1].Id == Convert.ToInt16(worksheet.Cell(i,1).Value.ToString()))
+            if (Users[idInList-1].Id != Convert.ToInt16(worksheet.Cell(i,1).Value.ToString()))
             {
-                try
-                {
-                    worksheet.Cell(i, 2).Value = organizationName;
-                    worksheet.Cell(i, 4).Value = contactName;
-                    Users[idInList - 1].ContactPerson = contactName;
-                    Users[idInList - 1].OrganizationName = organizationName;
-                    workbook.Save();
-
-                    return true;
-                }
-                catch { return false; }
+                i++;
+                continue;
             }
-            i++;
+            try
+            {
+                worksheet.Cell(i, 2).Value = organizationName;
+                worksheet.Cell(i, 4).Value = contactName;
+                Users[idInList - 1].ContactPerson = contactName;
+                Users[idInList - 1].OrganizationName = organizationName;
+                workbook.Save();
+                return true;
+            }
+            catch { return false; }
         }
 
         return false;
